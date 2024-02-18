@@ -7,6 +7,7 @@ from notion_client import Client
 from notion_client.errors import APIResponseError
 from datetime import datetime
 import os
+from threading import Thread
 
 
 notion_token = os.getenv("NOTION_API_KEY")
@@ -67,15 +68,22 @@ def clean_text(text):
 def fetch_and_process_feeds(csv_file):
     """CSVファイルからフィードを読み込み、処理。"""
     current_date_iso = datetime.now().date().isoformat()
+
+    threads = []
     with open(csv_file, "r") as f:
         feed_list = csv.reader(f)
         for feed in feed_list:
-            process_feed(feed[0], current_date_iso)
+            t = Thread(target=process_feed, args=(feed[0], current_date_iso))
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
 
 
 def process_feed(url, current_date_iso):
     """個々のフィードを処理。"""
     feed = feedparser.parse(url)
+    threads = []
     for e in feed.entries:
         response = requests.get(e.link)
         safe_title = clean_text(e.title)
@@ -89,7 +97,11 @@ def process_feed(url, current_date_iso):
             if date
             else current_date_iso
         )
-        add_to_notion(safe_title, e.link, safe_body, date_str)
+        t = Thread(target=add_to_notion, args=(safe_title, e.link, safe_body, date_str))
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
 
 
 if __name__ == "__main__":
