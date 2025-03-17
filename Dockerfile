@@ -1,23 +1,23 @@
-# ベースイメージ
+# Base image
 FROM python:3.12-slim as base
 
-# 作業ディレクトリの設定
+# Set working directory
 ENV APP_ROOT /app
 WORKDIR ${APP_ROOT}
 
-# 依存関係のインストールのためのレイヤーのキャッシュを最適化
+# Optimize layer caching for dependency installation
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリケーションファイルのコピー
+# Copy application files
 COPY . .
 
-# ユーザーの追加
+# Add non-root user for security
 RUN useradd -r -s /bin/false appuser
 USER appuser
 
-# 環境変数の設定
+# Set environment variables
 ENV PYTHONPATH "${PYTHONPATH}:${APP_ROOT}"
 
-# アプリケーションの実行
+# Run the application
 ENTRYPOINT ["python", "main.py"]
