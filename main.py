@@ -16,7 +16,7 @@ notion = Client(auth=notion_token)
 
 
 def check_page_exists(title):
-    """指定したタイトルのページがデータベース内に存在するかチェック。"""
+    """Check if a page with the specified title exists in the database."""
     query = notion.databases.query(
         database_id=database_id, filter={"property": "Name", "title": {"equals": title}}
     )
@@ -24,7 +24,7 @@ def check_page_exists(title):
 
 
 def add_text_chunks_to_page(page_id, text, chunk_size=2000):
-    """テキストをチャンクに分割してページに追加。"""
+    """Add text to a page by dividing it into chunks."""
     chunks = [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
     for chunk in chunks:
         notion.blocks.children.append(
@@ -42,7 +42,7 @@ def add_text_chunks_to_page(page_id, text, chunk_size=2000):
 
 
 def add_to_notion(title, link, body, date):
-    """Notionに新しいページを追加。存在する場合はスキップ。"""
+    """Add a new page to Notion. Skip if it already exists."""
     try:
         if check_page_exists(title):
             print(f"Page '{title}' already exists.")
@@ -61,12 +61,12 @@ def add_to_notion(title, link, body, date):
 
 
 def clean_text(text):
-    """テキストから不正なUnicode文字を除去。"""
+    """Remove invalid Unicode characters from text."""
     return re.sub(r"[^\u0000-\uD7FF\uE000-\uFFFF]", "", text)
 
 
 def fetch_and_process_feeds(csv_file):
-    """CSVファイルからフィードを読み込み、処理。"""
+    """Read feeds from a CSV file and process them."""
     current_date_iso = datetime.now().date().isoformat()
 
     threads = []
@@ -81,7 +81,7 @@ def fetch_and_process_feeds(csv_file):
 
 
 def process_feed(url, current_date_iso):
-    """個々のフィードを処理。"""
+    """Process an individual feed."""
     feed = feedparser.parse(url)
     threads = []
     for e in feed.entries:
