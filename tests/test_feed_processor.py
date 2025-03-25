@@ -15,13 +15,13 @@ class TestFeedProcessor(unittest.TestCase):
         # Create a patcher for the logger
         self.logger_patcher = patch("src.feed_to_somewhere.feed_processor.logger")
         self.mock_logger = self.logger_patcher.start()
-        
+
         # Create a patcher for the NotionClient
         self.notion_client_patcher = patch("src.feed_to_somewhere.feed_processor.NotionClient")
         self.mock_notion_client_class = self.notion_client_patcher.start()
         self.mock_notion_client = MagicMock()
         self.mock_notion_client_class.return_value = self.mock_notion_client
-        
+
         # Create the FeedProcessor instance
         self.feed_processor = FeedProcessor()
 
@@ -39,12 +39,12 @@ class TestFeedProcessor(unittest.TestCase):
         """Test initialization with custom values."""
         custom_notion_client = MagicMock()
         custom_max_workers = 5
-        
+
         feed_processor = FeedProcessor(
             notion_client=custom_notion_client,
             max_workers=custom_max_workers
         )
-        
+
         self.assertEqual(feed_processor.notion_client, custom_notion_client)
         self.assertEqual(feed_processor.max_workers, custom_max_workers)
 
@@ -52,12 +52,12 @@ class TestFeedProcessor(unittest.TestCase):
         """Test read_feed_urls with a valid CSV file."""
         # Mock CSV content
         csv_content = "http://example.com/feed1\nhttp://example.com/feed2"
-        
+
         # Mock open function
         with patch("builtins.open", mock_open(read_data=csv_content)):
             # Test
             urls = self.feed_processor.read_feed_urls("feed_list.csv")
-            
+
             # Assert
             self.assertEqual(len(urls), 2)
             self.assertEqual(urls[0], "http://example.com/feed1")
@@ -70,7 +70,7 @@ class TestFeedProcessor(unittest.TestCase):
         with patch("builtins.open", mock_open(read_data="")):
             # Test
             urls = self.feed_processor.read_feed_urls("feed_list.csv")
-            
+
             # Assert
             self.assertEqual(len(urls), 0)
             self.mock_logger.info.assert_called_once()
@@ -81,7 +81,7 @@ class TestFeedProcessor(unittest.TestCase):
         with patch("builtins.open", side_effect=IOError("File not found")):
             # Test
             urls = self.feed_processor.read_feed_urls("feed_list.csv")
-            
+
             # Assert
             self.assertEqual(len(urls), 0)
             self.mock_logger.error.assert_called_once()
@@ -95,10 +95,10 @@ class TestFeedProcessor(unittest.TestCase):
         mock_feed = MagicMock()
         mock_feed.entries = [mock_entry1, mock_entry2]
         mock_parse.return_value = mock_feed
-        
+
         # Test
         entries = self.feed_processor.fetch_feed_entries("http://example.com/feed")
-        
+
         # Assert
         self.assertEqual(len(entries), 2)
         self.assertEqual(entries[0], mock_entry1)
@@ -113,10 +113,10 @@ class TestFeedProcessor(unittest.TestCase):
         mock_feed = MagicMock()
         mock_feed.entries = []
         mock_parse.return_value = mock_feed
-        
+
         # Test
         entries = self.feed_processor.fetch_feed_entries("http://example.com/feed")
-        
+
         # Assert
         self.assertEqual(len(entries), 0)
         mock_parse.assert_called_once_with("http://example.com/feed")
@@ -127,10 +127,10 @@ class TestFeedProcessor(unittest.TestCase):
         """Test fetch_feed_entries with an error."""
         # Mock feedparser to raise an exception
         mock_parse.side_effect = Exception("Parse error")
-        
+
         # Test
         entries = self.feed_processor.fetch_feed_entries("http://example.com/feed")
-        
+
         # Assert
         self.assertEqual(len(entries), 0)
         mock_parse.assert_called_once_with("http://example.com/feed")
@@ -143,7 +143,7 @@ class TestFeedProcessor(unittest.TestCase):
         # Mock requests response
         mock_response = MagicMock()
         mock_get.return_value = mock_response
-        
+
         # Mock BeautifulSoup
         mock_p1 = MagicMock()
         mock_p1.text = "Paragraph 1"
@@ -152,10 +152,10 @@ class TestFeedProcessor(unittest.TestCase):
         mock_soup = MagicMock()
         mock_soup.find_all.return_value = [mock_p1, mock_p2]
         mock_bs.return_value = mock_soup
-        
+
         # Test
         content = self.feed_processor.extract_content("http://example.com/article")
-        
+
         # Assert
         self.assertEqual(content, "Paragraph 1 Paragraph 2")
         mock_get.assert_called_once_with("http://example.com/article", timeout=30)
@@ -168,10 +168,10 @@ class TestFeedProcessor(unittest.TestCase):
         # Mock requests to raise an exception
         from requests.exceptions import RequestException
         mock_get.side_effect = RequestException("Connection error")
-        
+
         # Test
         content = self.feed_processor.extract_content("http://example.com/article")
-        
+
         # Assert
         self.assertEqual(content, "")
         mock_get.assert_called_once_with("http://example.com/article", timeout=30)
@@ -185,15 +185,15 @@ class TestFeedProcessor(unittest.TestCase):
             "link": "http://example.com/article",
             "published_parsed": None
         }
-        
+
         # Mock extract_content
         with patch.object(self.feed_processor, "extract_content", return_value="Test content"):
             # Mock add_page
             self.mock_notion_client.add_page.return_value = {"id": "page_id"}
-            
+
             # Test
             result = self.feed_processor.process_entry(mock_entry, "2023-01-01")
-            
+
             # Assert
             self.assertTrue(result)
             self.feed_processor.extract_content.assert_called_once_with("http://example.com/article")
@@ -207,10 +207,10 @@ class TestFeedProcessor(unittest.TestCase):
             "link": "",
             "published_parsed": None
         }
-        
+
         # Test
         result = self.feed_processor.process_entry(mock_entry, "2023-01-01")
-        
+
         # Assert
         self.assertFalse(result)
         self.mock_logger.warning.assert_called_once()
@@ -224,15 +224,15 @@ class TestFeedProcessor(unittest.TestCase):
             "link": "http://example.com/article",
             "published_parsed": None
         }
-        
+
         # Mock extract_content to return empty string
         with patch.object(self.feed_processor, "extract_content", return_value=""):
             # Mock add_page
             self.mock_notion_client.add_page.return_value = {"id": "page_id"}
-            
+
             # Test
             result = self.feed_processor.process_entry(mock_entry, "2023-01-01")
-            
+
             # Assert
             self.assertTrue(result)
             self.feed_processor.extract_content.assert_called_once_with("http://example.com/article")
@@ -247,15 +247,15 @@ class TestFeedProcessor(unittest.TestCase):
             "link": "http://example.com/article",
             "published_parsed": None
         }
-        
+
         # Mock extract_content
         with patch.object(self.feed_processor, "extract_content", return_value="Test content"):
             # Mock add_page to return None (failure)
             self.mock_notion_client.add_page.return_value = None
-            
+
             # Test
             result = self.feed_processor.process_entry(mock_entry, "2023-01-01")
-            
+
             # Assert
             self.assertFalse(result)
             self.feed_processor.extract_content.assert_called_once_with("http://example.com/article")
@@ -267,27 +267,27 @@ class TestFeedProcessor(unittest.TestCase):
         # Mock fetch_feed_entries
         mock_entry1 = {"title": "Entry 1", "link": "http://example.com/article1"}
         mock_entry2 = {"title": "Entry 2", "link": "http://example.com/article2"}
-        
+
         with patch.object(self.feed_processor, "fetch_feed_entries", return_value=[mock_entry1, mock_entry2]):
             # Mock ThreadPoolExecutor
             mock_executor = MagicMock()
             mock_executor_class.return_value.__enter__.return_value = mock_executor
-            
+
             # Mock submit and result
             mock_future1 = MagicMock()
             mock_future1.result.return_value = True
             mock_future2 = MagicMock()
             mock_future2.result.return_value = False
-            
+
             mock_executor.submit.side_effect = [mock_future1, mock_future2]
-            
+
             # Mock as_completed to return futures in order
-            with patch("src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed", 
+            with patch("src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
                       return_value=[mock_future1, mock_future2]):
-                
+
                 # Test
                 result = self.feed_processor.process_feed("http://example.com/feed")
-                
+
                 # Assert
                 self.assertEqual(result, 1)  # One successful entry
                 self.feed_processor.fetch_feed_entries.assert_called_once_with("http://example.com/feed")
@@ -300,7 +300,7 @@ class TestFeedProcessor(unittest.TestCase):
         with patch.object(self.feed_processor, "fetch_feed_entries", return_value=[]):
             # Test
             result = self.feed_processor.process_feed("http://example.com/feed")
-            
+
             # Assert
             self.assertEqual(result, 0)
             self.feed_processor.fetch_feed_entries.assert_called_once_with("http://example.com/feed")
@@ -309,28 +309,28 @@ class TestFeedProcessor(unittest.TestCase):
     def test_process_feeds_success(self, mock_executor_class):
         """Test process_feeds with valid feeds."""
         # Mock read_feed_urls
-        with patch.object(self.feed_processor, "read_feed_urls", 
+        with patch.object(self.feed_processor, "read_feed_urls",
                          return_value=["http://example.com/feed1", "http://example.com/feed2"]):
-            
+
             # Mock ThreadPoolExecutor
             mock_executor = MagicMock()
             mock_executor_class.return_value.__enter__.return_value = mock_executor
-            
+
             # Mock submit and result
             mock_future1 = MagicMock()
             mock_future1.result.return_value = 2  # 2 entries processed
             mock_future2 = MagicMock()
             mock_future2.result.return_value = 0  # 0 entries processed
-            
+
             mock_executor.submit.side_effect = [mock_future1, mock_future2]
-            
+
             # Mock as_completed to return futures in order
-            with patch("src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed", 
+            with patch("src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
                       return_value=[mock_future1, mock_future2]):
-                
+
                 # Test
                 result = self.feed_processor.process_feeds("feed_list.csv")
-                
+
                 # Assert
                 self.assertEqual(result, 1)  # One successful feed
                 self.feed_processor.read_feed_urls.assert_called_once_with("feed_list.csv")
@@ -343,7 +343,7 @@ class TestFeedProcessor(unittest.TestCase):
         with patch.object(self.feed_processor, "read_feed_urls", return_value=[]):
             # Test
             result = self.feed_processor.process_feeds("feed_list.csv")
-            
+
             # Assert
             self.assertEqual(result, 0)
             self.feed_processor.read_feed_urls.assert_called_once_with("feed_list.csv")

@@ -45,7 +45,7 @@ class FeedProcessor:
             logger.info(f"Read {len(urls)} feed URLs from {csv_file}")
         except (IOError, IndexError) as e:
             logger.error(f"Failed to read feed URLs from {csv_file}: {e}")
-        
+
         return urls
 
     def fetch_feed_entries(self, url: str) -> List[Dict[str, Any]]:
@@ -79,11 +79,11 @@ class FeedProcessor:
         try:
             response = requests.get(url, timeout=30)
             response.raise_for_status()
-            
+
             soup = BeautifulSoup(response.content, "html.parser")
             paragraphs = soup.find_all("p")
             content = " ".join(p.text for p in paragraphs)
-            
+
             logger.debug(f"Extracted {len(content)} characters from {url}")
             return content
         except RequestException as e:
@@ -107,23 +107,23 @@ class FeedProcessor:
         try:
             title = clean_text(entry.get("title", "Untitled"))
             link = entry.get("link", "")
-            
+
             if not link:
                 logger.warning(f"Entry '{title}' has no link, skipping")
                 return False
-            
+
             body = self.extract_content(link)
             if not body:
                 logger.warning(f"Failed to extract content for '{title}', using empty body")
                 body = "No content extracted"
-            
+
             safe_body = clean_text(body)
             date_struct = entry.get("published_parsed")
             date_str = format_date(date_struct, current_date)
-            
+
             result = self.notion_client.add_page(title, link, safe_body, date_str)
             return result is not None
-            
+
         except Exception as e:
             logger.error(f"Failed to process entry: {e}")
             return False
@@ -141,13 +141,13 @@ class FeedProcessor:
         entries = self.fetch_feed_entries(url)
         if not entries:
             return 0
-        
+
         current_date = get_current_date_iso()
         success_count = 0
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {executor.submit(self.process_entry, entry, current_date): entry for entry in entries}
-            
+
             for future in concurrent.futures.as_completed(futures):
                 entry = futures[future]
                 try:
@@ -155,7 +155,7 @@ class FeedProcessor:
                         success_count += 1
                 except Exception as e:
                     logger.error(f"Error processing entry {entry.get('title', 'Unknown')}: {e}")
-        
+
         logger.info(f"Successfully processed {success_count}/{len(entries)} entries from {url}")
         return success_count
 
@@ -173,12 +173,12 @@ class FeedProcessor:
         if not urls:
             logger.warning(f"No feed URLs found in {csv_file}")
             return 0
-        
+
         success_count = 0
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {executor.submit(self.process_feed, url): url for url in urls}
-            
+
             for future in concurrent.futures.as_completed(futures):
                 url = futures[future]
                 try:
@@ -187,6 +187,6 @@ class FeedProcessor:
                         success_count += 1
                 except Exception as e:
                     logger.error(f"Error processing feed {url}: {e}")
-        
+
         logger.info(f"Successfully processed {success_count}/{len(urls)} feeds")
         return success_count

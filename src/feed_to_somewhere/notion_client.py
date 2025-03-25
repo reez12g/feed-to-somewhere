@@ -54,7 +54,7 @@ class NotionClient:
             text: The text to add.
         """
         chunks = chunk_text(text, self.chunk_size)
-        
+
         for chunk in chunks:
             try:
                 self.client.blocks.children.append(
@@ -98,11 +98,11 @@ class NotionClient:
                     "Date": {"date": {"start": date}},
                 },
             )
-            
+
             self.add_text_chunks_to_page(new_page["id"], body)
             logger.info(f"Added page '{title}'")
             return new_page
-            
+
         except APIResponseError as e:
             logger.error(f"Failed to add page '{title}'. Error: {e}")
             return None

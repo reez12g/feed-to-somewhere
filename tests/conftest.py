@@ -41,14 +41,14 @@ def mock_thread_pool():
     with patch('src.feed_to_somewhere.feed_processor.concurrent.futures.ThreadPoolExecutor') as mock_executor_class:
         mock_executor = MagicMock()
         mock_executor_class.return_value.__enter__.return_value = mock_executor
-        
+
         # Create mock futures
         mock_future = MagicMock()
         mock_future.result.return_value = True
         mock_executor.submit.return_value = mock_future
-        
+
         # Mock as_completed to return the mock future
-        with patch('src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed', 
+        with patch('src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed',
                   return_value=[mock_future]):
             yield mock_executor_class, mock_executor, mock_future
 

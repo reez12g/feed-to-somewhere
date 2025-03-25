@@ -14,10 +14,10 @@ class TestMain(unittest.TestCase):
         # Mock config
         with patch("src.feed_to_somewhere.main.config") as mock_config:
             mock_config.feed_list_path = "feed_list.csv"
-            
+
             # Test with no arguments
             args = parse_args([])
-            
+
             # Assert
             self.assertEqual(args.feed_file, "feed_list.csv")
             self.assertEqual(args.max_workers, 10)
@@ -27,7 +27,7 @@ class TestMain(unittest.TestCase):
         """Test parse_args with custom values."""
         # Test with custom arguments
         args = parse_args(["--feed-file", "custom.csv", "--max-workers", "5", "--log-level", "DEBUG"])
-        
+
         # Assert
         self.assertEqual(args.feed_file, "custom.csv")
         self.assertEqual(args.max_workers, 5)
@@ -42,10 +42,10 @@ class TestMain(unittest.TestCase):
         mock_processor = MagicMock()
         mock_processor_class.return_value = mock_processor
         mock_processor.process_feeds.return_value = 5  # 5 feeds processed
-        
+
         # Test
         exit_code = main(["--feed-file", "test.csv"])
-        
+
         # Assert
         self.assertEqual(exit_code, 0)
         mock_setup_logger.assert_called_once()
@@ -62,10 +62,10 @@ class TestMain(unittest.TestCase):
         mock_processor = MagicMock()
         mock_processor_class.return_value = mock_processor
         mock_processor.process_feeds.return_value = 0  # No feeds processed
-        
+
         # Test
         exit_code = main(["--feed-file", "test.csv"])
-        
+
         # Assert
         self.assertEqual(exit_code, 1)
         mock_setup_logger.assert_called_once()
@@ -83,10 +83,10 @@ class TestMain(unittest.TestCase):
         mock_processor = MagicMock()
         mock_processor_class.return_value = mock_processor
         mock_processor.process_feeds.side_effect = Exception("Test error")
-        
+
         # Test
         exit_code = main(["--feed-file", "test.csv"])
-        
+
         # Assert
         self.assertEqual(exit_code, 1)
         mock_setup_logger.assert_called_once()
