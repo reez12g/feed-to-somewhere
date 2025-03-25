@@ -18,6 +18,8 @@ USER appuser
 
 # Set environment variables
 ENV PYTHONPATH "${PYTHONPATH}:${APP_ROOT}"
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Run the application
 ENTRYPOINT ["python", "main.py"]
