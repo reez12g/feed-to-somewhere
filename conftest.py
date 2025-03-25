@@ -36,4 +36,4 @@ def mock_thread():
     with patch('main.Thread') as mock_thread:
         mock_thread_instance = MagicMock()
         mock_thread.return_value = mock_thread_instance
-        yield mock_thread, mock_thread_instance 
+        yield mock_thread, mock_thread_instance
