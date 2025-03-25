@@ -81,31 +81,92 @@ feed-to-somewhere/
 │       ├── main.py          # Package entry point
 │       ├── notion_client.py # Notion API client
 │       └── utils.py         # Utility functions
+├── tests/
+│   ├── conftest.py          # Pytest fixtures
+│   ├── test_feed_processor.py # Tests for feed processor
+│   ├── test_main.py         # Tests for main module
+│   ├── test_notion_client.py # Tests for Notion client
+│   └── test_utils.py        # Tests for utilities
 ├── main.py                  # Application entry point
 ├── requirements.txt         # Dependencies
 ├── Dockerfile               # Docker configuration
+├── setup.py                 # Package installation
+├── pytest.ini               # Pytest configuration
 └── README.md                # This file
 ```
 
 ## Testing
 
-This project includes two types of tests:
-
-1. `test_main.py` - Tests using unittest
-2. `test_main_pytest.py` - Tests using pytest
+This project uses pytest for testing. The tests are organized in the `tests/` directory.
 
 To run the tests:
 
 ```bash
+# Install the package in development mode
+pip install -e .
+
 # Run all tests
 pytest
 
-# Run only unittest style tests
-python -m unittest test_main.py
+# Run tests for a specific module
+pytest tests/test_utils.py
 
-# Run only pytest style tests
-pytest test_main_pytest.py
+# Run tests with verbose output
+pytest -v
 ```
+
+### Environment Variables for Testing
+
+When running tests, you'll need to set the required environment variables:
+
+```bash
+# For Unix/Linux/macOS
+export NOTION_API_KEY=your_key
+export NOTION_DATABASE_ID=your_db_id
+
+# For Windows Command Prompt
+set NOTION_API_KEY=your_key
+set NOTION_DATABASE_ID=your_db_id
+
+# For Windows PowerShell
+$env:NOTION_API_KEY="your_key"
+$env:NOTION_DATABASE_ID="your_db_id"
+```
+
+Alternatively, you can create a `.env` file in the project root with these variables:
+
+```
+NOTION_API_KEY=your_key
+NOTION_DATABASE_ID=your_db_id
+```
+
+And use a package like `python-dotenv` to load them.
+
+## Development
+
+### Installation for Development
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/feed-to-somewhere.git
+cd feed-to-somewhere
+
+# Install in development mode
+pip install -e .
+
+# Install development dependencies
+pip install pytest
+```
+
+### Package Installation
+
+You can also install the package directly:
+
+```bash
+pip install .
+```
+
+This will make the `feed-to-somewhere` command available in your environment.
 
 ## Dependencies
 
@@ -113,4 +174,4 @@ pytest test_main_pytest.py
 - feedparser - RSS feed parsing
 - notion-client - Notion API integration
 - requests - HTTP requests
-- pytest - Testing
+- pytest - Testing (development only)
