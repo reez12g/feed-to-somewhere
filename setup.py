@@ -15,6 +15,7 @@ setup(
         "feedparser>=6.0.0",
         "notion-client>=2.0.0",
         "requests>=2.25.0",
+        "python-dotenv>=1.0.0",
     ],
     python_requires=">=3.8",
     entry_points={

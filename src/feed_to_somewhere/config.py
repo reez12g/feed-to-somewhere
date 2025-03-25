@@ -2,6 +2,17 @@
 
 import os
 from typing import Optional
+from pathlib import Path
+
+# Try to load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    # Look for .env file in the project root
+    env_path = Path(__file__).resolve().parents[2] / '.env'
+    load_dotenv(dotenv_path=env_path)
+except ImportError:
+    # python-dotenv is not installed, continue without it
+    pass
 
 
 class Config:
