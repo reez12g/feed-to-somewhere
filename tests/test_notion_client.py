@@ -93,25 +93,36 @@ class TestNotionClient(unittest.TestCase):
         result = self.notion_client.check_page_exists("Test Title")
 
         # Assert
-        self.assertFalse(result)
+        self.assertIsNone(result)
         self.mock_client.databases.query.assert_called_once()
+        self.mock_logger.error.assert_called_once()
+
+    def test_check_page_exists_unexpected_error(self):
+        """Test check_page_exists handles unexpected exceptions."""
+        self.mock_client.databases.query.side_effect = Exception("boom")
+
+        result = self.notion_client.check_page_exists("https://example.com")
+
+        self.assertIsNone(result)
         self.mock_logger.error.assert_called_once()
 
     def test_add_text_chunks_to_page_single_chunk(self):
         """Test add_text_chunks_to_page with a single chunk."""
         # Test
-        self.notion_client.add_text_chunks_to_page("page_id", "Short text")
+        result = self.notion_client.add_text_chunks_to_page("page_id", "Short text")
 
         # Assert
+        self.assertTrue(result)
         self.mock_client.blocks.children.append.assert_called_once()
 
     def test_add_text_chunks_to_page_multiple_chunks(self):
         """Test add_text_chunks_to_page with multiple chunks."""
         # Test with text larger than chunk size
         long_text = "a" * 3000
-        self.notion_client.add_text_chunks_to_page("page_id", long_text)
+        result = self.notion_client.add_text_chunks_to_page("page_id", long_text)
 
         # Assert
+        self.assertTrue(result)
         self.assertEqual(self.mock_client.blocks.children.append.call_count, 2)
 
     def test_add_text_chunks_to_page_error(self):
@@ -122,9 +133,10 @@ class TestNotionClient(unittest.TestCase):
         self.mock_client.blocks.children.append.side_effect = mock_error
 
         # Test
-        self.notion_client.add_text_chunks_to_page("page_id", "Test text")
+        result = self.notion_client.add_text_chunks_to_page("page_id", "Test text")
 
         # Assert
+        self.assertFalse(result)
         self.mock_client.blocks.children.append.assert_called_once()
         self.mock_logger.error.assert_called_once()
 
@@ -150,6 +162,36 @@ class TestNotionClient(unittest.TestCase):
             result = self.notion_client.add_page("Test Title", "https://example.com", "Test Body", "2023-01-01")
 
             # Assert
+            self.assertIsNone(result)
+            self.mock_client.pages.create.assert_not_called()
+            self.mock_logger.info.assert_called_once()
+
+    def test_add_page_duplicate_check_failure(self):
+        """Test add_page aborts when the duplicate check fails."""
+        with patch.object(self.notion_client, "check_page_exists", return_value=None):
+            result = self.notion_client.add_page("Test Title", "https://example.com", "Test Body", "2023-01-01")
+
+            self.assertIsNone(result)
+            self.mock_client.pages.create.assert_not_called()
+            self.mock_logger.error.assert_called_once()
+
+    def test_add_page_body_append_failure(self):
+        """Test add_page returns None when body chunks fail to append."""
+        with patch.object(self.notion_client, "check_page_exists", return_value=False):
+            with patch.object(self.notion_client, "add_text_chunks_to_page", return_value=False):
+                self.mock_client.pages.create.return_value = {"id": "new_page_id"}
+
+                result = self.notion_client.add_page("Test Title", "https://example.com", "Test Body", "2023-01-01")
+
+                self.assertIsNone(result)
+                self.mock_client.pages.create.assert_called_once()
+                self.mock_logger.error.assert_called_once()
+
+    def test_add_page_skips_pending_link(self):
+        """Test add_page skips links already being created in this process."""
+        with patch.object(self.notion_client, "_mark_link_pending", return_value=False):
+            result = self.notion_client.add_page("Test Title", "https://example.com", "Test Body", "2023-01-01")
+
             self.assertIsNone(result)
             self.mock_client.pages.create.assert_not_called()
             self.mock_logger.info.assert_called_once()
