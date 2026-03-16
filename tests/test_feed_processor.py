@@ -2,8 +2,7 @@
 
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
-import io
-import sys
+
 from feed_to_somewhere.feed_processor import FeedProcessor
 
 
@@ -90,6 +89,22 @@ class TestFeedProcessor(unittest.TestCase):
             self.assertEqual(urls, ["http://example.com/feed1", "http://example.com/feed2"])
             self.mock_logger.warning.assert_called_once()
 
+    def test_read_feed_urls_skips_unsupported_and_duplicate_urls(self):
+        """Test read_feed_urls skips unsupported schemes and duplicates."""
+        csv_content = (
+            "http://example.com/feed1\n"
+            "ftp://example.com/feed2\n"
+            "http://example.com/feed1\n"
+            "https://example.com/feed3\n"
+        )
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            urls = self.feed_processor.read_feed_urls("feed_list.csv")
+
+            self.assertEqual(urls, ["http://example.com/feed1", "https://example.com/feed3"])
+            self.assertEqual(self.mock_logger.warning.call_count, 1)
+            self.assertEqual(self.mock_logger.info.call_count, 2)
+
     def test_read_feed_urls_io_error(self):
         """Test read_feed_urls with an IO error."""
         # Mock open function to raise an IOError
@@ -109,6 +124,7 @@ class TestFeedProcessor(unittest.TestCase):
         mock_entry2 = MagicMock()
         mock_feed = MagicMock()
         mock_feed.entries = [mock_entry1, mock_entry2]
+        mock_feed.bozo = False
         mock_parse.return_value = mock_feed
 
         # Test
@@ -127,6 +143,7 @@ class TestFeedProcessor(unittest.TestCase):
         # Mock feedparser response
         mock_feed = MagicMock()
         mock_feed.entries = []
+        mock_feed.bozo = False
         mock_parse.return_value = mock_feed
 
         # Test
@@ -136,6 +153,20 @@ class TestFeedProcessor(unittest.TestCase):
         self.assertEqual(len(entries), 0)
         mock_parse.assert_called_once_with("http://example.com/feed")
         self.mock_logger.info.assert_called_once()
+
+    @patch("feed_to_somewhere.feed_processor.feedparser.parse")
+    def test_fetch_feed_entries_logs_bozo_feeds(self, mock_parse):
+        """Test fetch_feed_entries logs malformed feeds reported by feedparser."""
+        mock_feed = MagicMock()
+        mock_feed.entries = []
+        mock_feed.bozo = True
+        mock_feed.bozo_exception = ValueError("bad xml")
+        mock_parse.return_value = mock_feed
+
+        entries = self.feed_processor.fetch_feed_entries("http://example.com/feed")
+
+        self.assertEqual(entries, [])
+        self.mock_logger.warning.assert_called_once()
 
     @patch("feed_to_somewhere.feed_processor.feedparser.parse")
     def test_fetch_feed_entries_error(self, mock_parse):
@@ -173,7 +204,11 @@ class TestFeedProcessor(unittest.TestCase):
 
         # Assert
         self.assertEqual(content, "Paragraph 1 Paragraph 2")
-        mock_get.assert_called_once_with("http://example.com/article", timeout=30)
+        mock_get.assert_called_once_with(
+            "http://example.com/article",
+            headers=self.feed_processor.ARTICLE_REQUEST_HEADERS,
+            timeout=30,
+        )
         mock_bs.assert_called_once()
         mock_soup.find_all.assert_called_once_with("p")
 
@@ -189,8 +224,23 @@ class TestFeedProcessor(unittest.TestCase):
 
         # Assert
         self.assertEqual(content, "")
-        mock_get.assert_called_once_with("http://example.com/article", timeout=30)
+        mock_get.assert_called_once_with(
+            "http://example.com/article",
+            headers=self.feed_processor.ARTICLE_REQUEST_HEADERS,
+            timeout=30,
+        )
         self.mock_logger.error.assert_called_once()
+
+    def test_extract_entry_content_prefers_content_list(self):
+        """Test extract_entry_content prefers the content list over summaries."""
+        entry = {
+            "content": [{"value": "<p>Full body</p>"}],
+            "summary": "<p>Summary</p>",
+        }
+
+        content = self.feed_processor.extract_entry_content(entry)
+
+        self.assertEqual(content, "Full body")
 
     def test_process_entry_success(self):
         """Test process_entry with a valid entry."""
@@ -326,6 +376,34 @@ class TestFeedProcessor(unittest.TestCase):
                 self.feed_processor.fetch_feed_entries.assert_called_once_with("http://example.com/feed")
                 self.assertEqual(mock_executor.submit.call_count, 2)
                 self.mock_logger.info.assert_called()
+
+    @patch("feed_to_somewhere.feed_processor.concurrent.futures.ThreadPoolExecutor")
+    def test_process_feed_skips_duplicate_entry_links(self, mock_executor_class):
+        """Test process_feed skips duplicate entry links before submitting work."""
+        duplicate_entry = {"title": "Entry 1", "link": "http://example.com/article1"}
+        unique_entry = {"title": "Entry 2", "link": "http://example.com/article2"}
+
+        with patch.object(
+            self.feed_processor,
+            "fetch_feed_entries",
+            return_value=[duplicate_entry, duplicate_entry, unique_entry],
+        ):
+            mock_executor = MagicMock()
+            mock_executor_class.return_value.__enter__.return_value = mock_executor
+            mock_future1 = MagicMock()
+            mock_future1.result.return_value = True
+            mock_future2 = MagicMock()
+            mock_future2.result.return_value = True
+            mock_executor.submit.side_effect = [mock_future1, mock_future2]
+
+            with patch(
+                "feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
+                return_value=[mock_future1, mock_future2],
+            ):
+                result = self.feed_processor.process_feed("http://example.com/feed")
+
+                self.assertEqual(result, 2)
+                self.assertEqual(mock_executor.submit.call_count, 2)
 
     def test_process_feed_no_entries(self):
         """Test process_feed with a feed that has no entries."""

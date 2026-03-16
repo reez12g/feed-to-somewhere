@@ -2,7 +2,9 @@
 
 import csv
 import concurrent.futures
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
+
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -15,6 +17,8 @@ from .notion_client import NotionClient
 
 class FeedProcessor:
     """Processor for RSS feeds."""
+
+    ARTICLE_REQUEST_HEADERS = {"User-Agent": "feed-to-somewhere/0.1.0"}
 
     def __init__(self, notion_client: Optional[NotionClient] = None, max_workers: int = 10):
         """
@@ -30,6 +34,20 @@ class FeedProcessor:
         self.notion_client = notion_client or NotionClient()
         self.max_workers = max_workers
 
+    @staticmethod
+    def is_supported_url(url: str) -> bool:
+        """
+        Validate that a URL uses http(s) and includes a network location.
+
+        Args:
+            url: The URL to validate.
+
+        Returns:
+            True for supported URLs, False otherwise.
+        """
+        parsed = urlparse(url)
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
     def read_feed_urls(self, csv_file: str) -> List[str]:
         """
         Read feed URLs from a CSV file.
@@ -41,6 +59,7 @@ class FeedProcessor:
             A list of feed URLs.
         """
         urls = []
+        seen_urls = set()
         try:
             with open(csv_file, "r", encoding="utf-8", newline="") as f:
                 feed_list = csv.reader(f)
@@ -56,6 +75,15 @@ class FeedProcessor:
                     if url.startswith("#"):
                         continue
 
+                    if not self.is_supported_url(url):
+                        logger.warning(f"Skipping unsupported feed URL on line {line_number} in {csv_file}")
+                        continue
+
+                    if url in seen_urls:
+                        logger.info(f"Skipping duplicate feed URL on line {line_number} in {csv_file}")
+                        continue
+
+                    seen_urls.add(url)
                     urls.append(url)
             logger.info(f"Read {len(urls)} feed URLs from {csv_file}")
         except IOError as e:
@@ -75,6 +103,8 @@ class FeedProcessor:
         """
         try:
             feed = feedparser.parse(url)
+            if getattr(feed, "bozo", False):
+                logger.warning(f"Feed parser reported malformed content for {url}: {feed.bozo_exception}")
             logger.info(f"Fetched {len(feed.entries)} entries from {url}")
             return feed.entries
         except Exception as e:
@@ -135,7 +165,7 @@ class FeedProcessor:
             The extracted text content.
         """
         try:
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, headers=self.ARTICLE_REQUEST_HEADERS, timeout=30)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, "html.parser")
@@ -166,7 +196,8 @@ class FeedProcessor:
         """
         try:
             title = clean_text(entry.get("title", "Untitled"))
-            link = entry.get("link", "")
+            title = title.strip() or "Untitled"
+            link = entry.get("link", "").strip()
 
             if not link:
                 logger.warning(f"Entry '{title}' has no link, skipping")
@@ -205,12 +236,27 @@ class FeedProcessor:
         if not entries:
             return 0
 
+        deduplicated_entries = []
+        seen_links = set()
+        for entry in entries:
+            link = entry.get("link", "").strip()
+            if link and link in seen_links:
+                logger.info(f"Skipping duplicate entry link '{link}' from {url}")
+                continue
+
+            if link:
+                seen_links.add(link)
+            deduplicated_entries.append(entry)
+
         current_date = get_current_date_iso()
         success_count = 0
-        worker_count = min(self.max_workers, len(entries))
+        worker_count = min(self.max_workers, len(deduplicated_entries))
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = {executor.submit(self.process_entry, entry, current_date): entry for entry in entries}
+            futures = {
+                executor.submit(self.process_entry, entry, current_date): entry
+                for entry in deduplicated_entries
+            }
 
             for future in concurrent.futures.as_completed(futures):
                 entry = futures[future]
@@ -220,7 +266,7 @@ class FeedProcessor:
                 except Exception as e:
                     logger.error(f"Error processing entry {entry.get('title', 'Unknown')}: {e}")
 
-        logger.info(f"Successfully processed {success_count}/{len(entries)} entries from {url}")
+        logger.info(f"Successfully processed {success_count}/{len(deduplicated_entries)} entries from {url}")
         return success_count
 
     def process_feeds(self, csv_file: str) -> int:
