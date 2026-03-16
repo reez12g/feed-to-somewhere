@@ -5,9 +5,9 @@ A Python application that reads RSS feeds and saves them to a Notion database.
 ## Features
 
 - Reads feed URLs from a CSV file
-- Fetches feed entries and extracts text content
-- Saves entries to a Notion database
-- Parallel processing using thread pools
+- Reuses feed-provided article content before fetching full pages
+- Saves entries to a Notion database with URL-based deduplication
+- Parallel processing with bounded worker counts
 - Robust error handling and logging
 - Configurable via environment variables and command-line arguments
 
@@ -27,18 +27,21 @@ The following environment variables can be set:
 git clone https://github.com/yourusername/feed-to-somewhere.git
 cd feed-to-somewhere
 
-# Install dependencies
-pip install -r requirements.txt
+# Install the application
+pip install .
 ```
 
 ## Usage
 
 ```bash
 # Basic usage
-python main.py
+feed-to-somewhere
 
 # With command-line arguments
-python main.py --feed-file custom_feeds.csv --max-workers 20 --log-level DEBUG
+feed-to-somewhere --feed-file custom_feeds.csv --max-workers 20 --log-level DEBUG
+
+# Repository-local wrapper without installation
+python3 main.py --feed-file custom_feeds.csv
 ```
 
 ### Command-line Arguments
@@ -65,7 +68,10 @@ You can also run the application using Docker:
 docker build -t feed-to-somewhere .
 
 # Run the container
-docker run -e NOTION_API_KEY=your_key -e NOTION_DATABASE_ID=your_db_id feed-to-somewhere
+docker run --rm \
+  -e NOTION_API_KEY=your_key \
+  -e NOTION_DATABASE_ID=your_db_id \
+  feed-to-somewhere
 ```
 
 ## Project Structure
@@ -89,6 +95,7 @@ feed-to-somewhere/
 │   └── test_utils.py        # Tests for utilities
 ├── main.py                  # Application entry point
 ├── requirements.txt         # Dependencies
+├── requirements-dev.txt     # Development dependencies
 ├── Dockerfile               # Docker configuration
 ├── setup.py                 # Package installation
 ├── pytest.ini               # Pytest configuration
@@ -102,45 +109,17 @@ This project uses pytest for testing. The tests are organized in the `tests/` di
 To run the tests:
 
 ```bash
-# Install the package in development mode
-pip install -e .
+# Install the package with development dependencies
+pip install -e . -r requirements-dev.txt
 
 # Run all tests
-pytest
-
-# Run tests for a specific module
-pytest tests/test_utils.py
+python -m pytest
 
 # Run tests with verbose output
-pytest -v
+python -m pytest -v
 ```
 
-### Environment Variables for Testing
-
-When running tests, you'll need to set the required environment variables:
-
-```bash
-# For Unix/Linux/macOS
-export NOTION_API_KEY=your_key
-export NOTION_DATABASE_ID=your_db_id
-
-# For Windows Command Prompt
-set NOTION_API_KEY=your_key
-set NOTION_DATABASE_ID=your_db_id
-
-# For Windows PowerShell
-$env:NOTION_API_KEY="your_key"
-$env:NOTION_DATABASE_ID="your_db_id"
-```
-
-Alternatively, you can create a `.env` file in the project root with these variables:
-
-```
-NOTION_API_KEY=your_key
-NOTION_DATABASE_ID=your_db_id
-```
-
-And use a package like `python-dotenv` to load them.
+Tests do not require live Notion credentials. External API calls are mocked.
 
 ## Development
 
@@ -152,10 +131,7 @@ git clone https://github.com/yourusername/feed-to-somewhere.git
 cd feed-to-somewhere
 
 # Install in development mode
-pip install -e .
-
-# Install development dependencies
-pip install pytest
+pip install -e . -r requirements-dev.txt
 ```
 
 ### Package Installation
@@ -174,4 +150,5 @@ This will make the `feed-to-somewhere` command available in your environment.
 - feedparser - RSS feed parsing
 - notion-client - Notion API integration
 - requests - HTTP requests
-- pytest - Testing (development only)
+- python-dotenv - Optional `.env` loading
+- pytest - Testing only, via `requirements-dev.txt`
