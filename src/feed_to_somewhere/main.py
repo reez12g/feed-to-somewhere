@@ -10,6 +10,14 @@ from .notion_client import NotionClient
 from .feed_processor import FeedProcessor
 
 
+def positive_int(value: str) -> int:
+    """Parse an argparse integer value and reject non-positive inputs."""
+    parsed_value = int(value)
+    if parsed_value <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed_value
+
+
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     """
     Parse command line arguments.
@@ -31,7 +39,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--max-workers",
-        type=int,
+        type=positive_int,
         default=10,
         help="Maximum number of worker threads (default: 10)"
     )

@@ -33,6 +33,11 @@ class TestMain(unittest.TestCase):
         self.assertEqual(args.max_workers, 5)
         self.assertEqual(args.log_level, "DEBUG")
 
+    def test_parse_args_rejects_non_positive_max_workers(self):
+        """Test parse_args rejects non-positive worker counts."""
+        with self.assertRaises(SystemExit):
+            parse_args(["--max-workers", "0"])
+
     @patch("src.feed_to_somewhere.main.setup_logger")
     @patch("src.feed_to_somewhere.main.NotionClient")
     @patch("src.feed_to_somewhere.main.FeedProcessor")

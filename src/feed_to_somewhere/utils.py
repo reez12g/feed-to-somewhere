@@ -49,6 +49,9 @@ def chunk_text(text: str, chunk_size: int = 2000) -> List[str]:
     Returns:
         A list of text chunks.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 

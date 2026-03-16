@@ -60,6 +60,11 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(chunks[1], "a" * 10)
         self.assertEqual(chunks[2], "a" * 5)
 
+    def test_chunk_text_rejects_non_positive_chunk_size(self):
+        """Test chunk_text rejects non-positive chunk sizes."""
+        with self.assertRaises(ValueError):
+            chunk_text("abc", 0)
+
     def test_get_current_date_iso(self):
         """Test get_current_date_iso returns a date in ISO format."""
         date_str = get_current_date_iso()

@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from typing import Optional
 
 
 def setup_logger(name: str = "feed_to_somewhere", level: int = logging.INFO) -> logging.Logger:
@@ -18,21 +17,21 @@ def setup_logger(name: str = "feed_to_somewhere", level: int = logging.INFO) -> 
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    logger.propagate = False
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
     # Create console handler if not already added
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(level)
-
-        # Create formatter
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        handler.setFormatter(formatter)
-
-        # Add handler to logger
         logger.addHandler(handler)
+    else:
+        handler = logger.handlers[0]
 
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
     return logger
 
 
