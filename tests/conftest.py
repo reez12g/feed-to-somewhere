@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from notion_client.errors import APIResponseError
 
 
 @pytest.fixture
@@ -58,6 +57,7 @@ def mock_config():
     """Fixture to mock config."""
     with patch('feed_to_somewhere.config.config') as mock_config:
         mock_config.notion_token = "test_token"
+        mock_config.notion_data_source_id = "test_data_source_id"
         mock_config.database_id = "test_database_id"
         mock_config.feed_list_path = "feed_list.csv"
         mock_config.chunk_size = 2000

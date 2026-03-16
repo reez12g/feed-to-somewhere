@@ -22,6 +22,7 @@ class Config:
     def __init__(self):
         """Initialize configuration from environment variables."""
         self.notion_token: Optional[str] = os.getenv("NOTION_API_KEY")
+        self.notion_data_source_id: Optional[str] = os.getenv("NOTION_DATA_SOURCE_ID")
         self.database_id: Optional[str] = os.getenv("NOTION_DATABASE_ID")
         self.feed_list_path: str = os.getenv("FEED_LIST_PATH", "feed_list.csv")
         self._chunk_size: str = os.getenv("CHUNK_SIZE", "2000")
@@ -51,6 +52,29 @@ def require(value: Optional[str], name: str) -> str:
     if value:
         return value
     raise ValueError(f"Environment variable {name} is required")
+
+
+def require_one_of(*candidates: tuple[Optional[str], str]) -> str:
+    """
+    Validate that at least one candidate setting is present.
+
+    Args:
+        *candidates: Pairs of candidate values and their environment variable names.
+
+    Returns:
+        The first non-empty value.
+
+    Raises:
+        ValueError: If every candidate is missing.
+    """
+    missing_names = []
+    for value, name in candidates:
+        if value:
+            return value
+        missing_names.append(name)
+
+    joined_names = " or ".join(missing_names)
+    raise ValueError(f"Environment variable {joined_names} is required")
 
 
 def require_positive_int(value: str, name: str) -> int:

@@ -2,10 +2,11 @@
 
 import threading
 from typing import Any, Dict, Optional, Set
+
 from notion_client import Client
 from notion_client.errors import APIResponseError
 
-from .config import config, require
+from .config import config, require, require_one_of
 from .logger import logger
 from .utils import chunk_text
 
@@ -13,20 +14,81 @@ from .utils import chunk_text
 class NotionClient:
     """Client for interacting with the Notion API."""
 
-    def __init__(self, token: Optional[str] = None, database_id: Optional[str] = None):
+    def __init__(
+        self,
+        token: Optional[str] = None,
+        database_id: Optional[str] = None,
+        data_source_id: Optional[str] = None,
+    ):
         """
         Initialize the Notion client.
 
         Args:
             token: Notion API token. If None, uses the token from config.
-            database_id: Notion database ID. If None, uses the database_id from config.
+            database_id: Notion database ID. Used to resolve a child data source when
+                a data source ID is not provided.
+            data_source_id: Notion data source ID. Preferred over database_id.
         """
         self.token = require(token or config.notion_token, "NOTION_API_KEY")
-        self.database_id = require(database_id or config.database_id, "NOTION_DATABASE_ID")
         self.client = Client(auth=self.token)
+        self.database_id = database_id or config.database_id
+        self.data_source_id = self._resolve_data_source_id(
+            data_source_id or config.notion_data_source_id,
+            self.database_id,
+        )
         self.chunk_size = config.chunk_size
         self._pending_links: Set[str] = set()
         self._pending_links_lock = threading.Lock()
+
+    def _resolve_data_source_id(
+        self,
+        data_source_id: Optional[str],
+        database_id: Optional[str],
+    ) -> str:
+        """
+        Resolve the target Notion data source ID.
+
+        Args:
+            data_source_id: Explicit data source ID.
+            database_id: Legacy database ID used to discover child data sources.
+
+        Returns:
+            The resolved data source ID.
+
+        Raises:
+            ValueError: If no usable parent identifier is available or resolution fails.
+        """
+        if data_source_id:
+            return data_source_id
+
+        resolved_database_id = require_one_of(
+            (database_id, "NOTION_DATABASE_ID"),
+            (config.notion_data_source_id, "NOTION_DATA_SOURCE_ID"),
+        )
+
+        try:
+            database = self.client.databases.retrieve(database_id=resolved_database_id)
+        except APIResponseError as exc:
+            raise ValueError(
+                f"Failed to retrieve Notion database '{resolved_database_id}' to resolve a data source ID"
+            ) from exc
+        except Exception as exc:
+            raise ValueError(
+                f"Unexpected error retrieving Notion database '{resolved_database_id}' to resolve a data source ID"
+            ) from exc
+
+        data_sources = database.get("data_sources", [])
+        if not data_sources:
+            raise ValueError(
+                f"Notion database '{resolved_database_id}' does not expose any child data sources"
+            )
+
+        try:
+            return data_sources[0]["id"]
+        except (TypeError, KeyError, IndexError) as exc:
+            raise ValueError(
+                f"Notion database '{resolved_database_id}' returned an invalid data source payload"
+            ) from exc
 
     def _mark_link_pending(self, link: str) -> bool:
         """
@@ -62,8 +124,8 @@ class NotionClient:
             existence check failed.
         """
         try:
-            query = self.client.databases.query(
-                database_id=self.database_id,
+            query = self.client.data_sources.query(
+                data_source_id=self.data_source_id,
                 filter={"property": "URL", "url": {"equals": link}}
             )
             return len(query.get("results", [])) > 0
@@ -138,7 +200,7 @@ class NotionClient:
                 return None
 
             new_page = self.client.pages.create(
-                parent={"database_id": self.database_id},
+                parent={"data_source_id": self.data_source_id},
                 properties={
                     "Name": {"title": [{"text": {"content": title}}]},
                     "URL": {"url": link},
