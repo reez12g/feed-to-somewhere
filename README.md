@@ -5,6 +5,8 @@ A Python application that reads RSS feeds and saves them to a Notion database.
 ## Features
 
 - Reads feed URLs from a CSV file
+- Processes one-off feed URLs directly from the command line
+- Supports dry-run previews without writing to Notion
 - Reuses feed-provided article content before fetching full pages
 - Saves entries to a Notion database with URL-based deduplication
 - Parallel processing with bounded worker counts
@@ -45,6 +47,12 @@ feed-to-somewhere
 # With command-line arguments
 feed-to-somewhere --feed-file custom_feeds.csv --max-workers 20 --log-level DEBUG
 
+# Preview a single feed without writing to Notion
+feed-to-somewhere --feed-url https://example.com/feed.xml --dry-run
+
+# Process only a subset while tuning the pipeline
+feed-to-somewhere --max-feeds 3 --max-entries 10
+
 # Repository-local wrapper without installation
 python3 main.py --feed-file custom_feeds.csv
 ```
@@ -52,7 +60,11 @@ python3 main.py --feed-file custom_feeds.csv
 ### Command-line Arguments
 
 - `--feed-file`: Path to CSV file containing feed URLs (default: value from `FEED_LIST_PATH` or `feed_list.csv`)
+- `--feed-url`: Process a feed URL directly; can be repeated
 - `--max-workers`: Maximum number of worker threads (default: `10`)
+- `--max-feeds`: Process at most this many feeds
+- `--max-entries`: Process at most this many entries per feed
+- `--dry-run`: Show what would be processed without writing to Notion
 - `--log-level`: Set the logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, default: `INFO`)
 
 ### CSV File Format
@@ -62,6 +74,7 @@ Each line in the CSV file should contain a feed URL:
 ```
 http://example.com/feed.xml
 http://another-site.com/rss
+# Comment lines are ignored
 ```
 
 ## Docker
