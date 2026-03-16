@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import io
 import sys
-from src.feed_to_somewhere.feed_processor import FeedProcessor
+from feed_to_somewhere.feed_processor import FeedProcessor
 
 
 class TestFeedProcessor(unittest.TestCase):
@@ -13,11 +13,11 @@ class TestFeedProcessor(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create a patcher for the logger
-        self.logger_patcher = patch("src.feed_to_somewhere.feed_processor.logger")
+        self.logger_patcher = patch("feed_to_somewhere.feed_processor.logger")
         self.mock_logger = self.logger_patcher.start()
 
         # Create a patcher for the NotionClient
-        self.notion_client_patcher = patch("src.feed_to_somewhere.feed_processor.NotionClient")
+        self.notion_client_patcher = patch("feed_to_somewhere.feed_processor.NotionClient")
         self.mock_notion_client_class = self.notion_client_patcher.start()
         self.mock_notion_client = MagicMock()
         self.mock_notion_client_class.return_value = self.mock_notion_client
@@ -101,7 +101,7 @@ class TestFeedProcessor(unittest.TestCase):
             self.assertEqual(len(urls), 0)
             self.mock_logger.error.assert_called_once()
 
-    @patch("src.feed_to_somewhere.feed_processor.feedparser.parse")
+    @patch("feed_to_somewhere.feed_processor.feedparser.parse")
     def test_fetch_feed_entries_success(self, mock_parse):
         """Test fetch_feed_entries with a valid feed."""
         # Mock feedparser response
@@ -121,7 +121,7 @@ class TestFeedProcessor(unittest.TestCase):
         mock_parse.assert_called_once_with("http://example.com/feed")
         self.mock_logger.info.assert_called_once()
 
-    @patch("src.feed_to_somewhere.feed_processor.feedparser.parse")
+    @patch("feed_to_somewhere.feed_processor.feedparser.parse")
     def test_fetch_feed_entries_empty_feed(self, mock_parse):
         """Test fetch_feed_entries with an empty feed."""
         # Mock feedparser response
@@ -137,7 +137,7 @@ class TestFeedProcessor(unittest.TestCase):
         mock_parse.assert_called_once_with("http://example.com/feed")
         self.mock_logger.info.assert_called_once()
 
-    @patch("src.feed_to_somewhere.feed_processor.feedparser.parse")
+    @patch("feed_to_somewhere.feed_processor.feedparser.parse")
     def test_fetch_feed_entries_error(self, mock_parse):
         """Test fetch_feed_entries with an error."""
         # Mock feedparser to raise an exception
@@ -151,8 +151,8 @@ class TestFeedProcessor(unittest.TestCase):
         mock_parse.assert_called_once_with("http://example.com/feed")
         self.mock_logger.error.assert_called_once()
 
-    @patch("src.feed_to_somewhere.feed_processor.requests.get")
-    @patch("src.feed_to_somewhere.feed_processor.BeautifulSoup")
+    @patch("feed_to_somewhere.feed_processor.requests.get")
+    @patch("feed_to_somewhere.feed_processor.BeautifulSoup")
     def test_extract_content_success(self, mock_bs, mock_get):
         """Test extract_content with a valid URL."""
         # Mock requests response
@@ -177,7 +177,7 @@ class TestFeedProcessor(unittest.TestCase):
         mock_bs.assert_called_once()
         mock_soup.find_all.assert_called_once_with("p")
 
-    @patch("src.feed_to_somewhere.feed_processor.requests.get")
+    @patch("feed_to_somewhere.feed_processor.requests.get")
     def test_extract_content_request_error(self, mock_get):
         """Test extract_content with a request error."""
         # Mock requests to raise an exception
@@ -294,7 +294,7 @@ class TestFeedProcessor(unittest.TestCase):
             self.feed_processor.extract_content.assert_called_once_with("http://example.com/article")
             self.mock_notion_client.add_page.assert_called_once()
 
-    @patch("src.feed_to_somewhere.feed_processor.concurrent.futures.ThreadPoolExecutor")
+    @patch("feed_to_somewhere.feed_processor.concurrent.futures.ThreadPoolExecutor")
     def test_process_feed_success(self, mock_executor_class):
         """Test process_feed with a valid feed."""
         # Mock fetch_feed_entries
@@ -315,7 +315,7 @@ class TestFeedProcessor(unittest.TestCase):
             mock_executor.submit.side_effect = [mock_future1, mock_future2]
 
             # Mock as_completed to return futures in order
-            with patch("src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
+            with patch("feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
                       return_value=[mock_future1, mock_future2]):
 
                 # Test

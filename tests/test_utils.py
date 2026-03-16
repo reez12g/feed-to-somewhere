@@ -2,7 +2,7 @@
 
 import unittest
 from datetime import datetime
-from src.feed_to_somewhere.utils import clean_text, format_date, chunk_text, get_current_date_iso
+from feed_to_somewhere.utils import clean_text, format_date, chunk_text, get_current_date_iso
 
 
 class TestUtils(unittest.TestCase):
@@ -17,6 +17,10 @@ class TestUtils(unittest.TestCase):
         # Test with invalid unicode characters
         text_with_invalid = "Hello\uD800World"
         self.assertEqual(clean_text(text_with_invalid), "HelloWorld")
+
+        # Test with control characters that Notion should not receive
+        text_with_controls = "Hello\x00World\x1f!\n"
+        self.assertEqual(clean_text(text_with_controls), "HelloWorld!\n")
 
     def test_format_date_with_valid_struct(self):
         """Test format_date with a valid date structure."""

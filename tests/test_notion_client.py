@@ -2,7 +2,7 @@
 
 import unittest
 from unittest.mock import patch, MagicMock
-from src.feed_to_somewhere.notion_client import NotionClient
+from feed_to_somewhere.notion_client import NotionClient
 from notion_client.errors import APIResponseError
 
 
@@ -15,18 +15,18 @@ class TestNotionClient(unittest.TestCase):
         self.database_id = "test_database_id"
 
         # Create a patcher for the config
-        self.config_patcher = patch("src.feed_to_somewhere.notion_client.config")
+        self.config_patcher = patch("feed_to_somewhere.notion_client.config")
         self.mock_config = self.config_patcher.start()
         self.mock_config.notion_token = self.token
         self.mock_config.database_id = self.database_id
         self.mock_config.chunk_size = 2000
 
         # Create a patcher for the logger
-        self.logger_patcher = patch("src.feed_to_somewhere.notion_client.logger")
+        self.logger_patcher = patch("feed_to_somewhere.notion_client.logger")
         self.mock_logger = self.logger_patcher.start()
 
         # Create a patcher for the Client
-        self.client_patcher = patch("src.feed_to_somewhere.notion_client.Client")
+        self.client_patcher = patch("feed_to_somewhere.notion_client.Client")
         self.mock_client_class = self.client_patcher.start()
         self.mock_client = MagicMock()
         self.mock_client_class.return_value = self.mock_client

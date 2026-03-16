@@ -3,7 +3,7 @@
 import logging
 import unittest
 
-from src.feed_to_somewhere.logger import setup_logger
+from feed_to_somewhere.logger import setup_logger
 
 
 class TestLogger(unittest.TestCase):

@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
-from src.feed_to_somewhere.main import main, parse_args
+from feed_to_somewhere.main import main, parse_args
 
 
 class TestMain(unittest.TestCase):
@@ -12,7 +12,7 @@ class TestMain(unittest.TestCase):
     def test_parse_args_defaults(self):
         """Test parse_args with default values."""
         # Mock config
-        with patch("src.feed_to_somewhere.main.config") as mock_config:
+        with patch("feed_to_somewhere.main.config") as mock_config:
             mock_config.feed_list_path = "feed_list.csv"
 
             # Test with no arguments
@@ -38,9 +38,9 @@ class TestMain(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--max-workers", "0"])
 
-    @patch("src.feed_to_somewhere.main.setup_logger")
-    @patch("src.feed_to_somewhere.main.NotionClient")
-    @patch("src.feed_to_somewhere.main.FeedProcessor")
+    @patch("feed_to_somewhere.main.setup_logger")
+    @patch("feed_to_somewhere.main.NotionClient")
+    @patch("feed_to_somewhere.main.FeedProcessor")
     def test_main_success(self, mock_processor_class, mock_notion_class, mock_setup_logger):
         """Test main function with successful processing."""
         # Mock processor
@@ -58,9 +58,9 @@ class TestMain(unittest.TestCase):
         mock_processor_class.assert_called_once()
         mock_processor.process_feeds.assert_called_once_with("test.csv")
 
-    @patch("src.feed_to_somewhere.main.setup_logger")
-    @patch("src.feed_to_somewhere.main.NotionClient")
-    @patch("src.feed_to_somewhere.main.FeedProcessor")
+    @patch("feed_to_somewhere.main.setup_logger")
+    @patch("feed_to_somewhere.main.NotionClient")
+    @patch("feed_to_somewhere.main.FeedProcessor")
     def test_main_no_feeds_processed(self, mock_processor_class, mock_notion_class, mock_setup_logger):
         """Test main function with no feeds processed."""
         # Mock processor
@@ -78,10 +78,10 @@ class TestMain(unittest.TestCase):
         mock_processor_class.assert_called_once()
         mock_processor.process_feeds.assert_called_once_with("test.csv")
 
-    @patch("src.feed_to_somewhere.main.setup_logger")
-    @patch("src.feed_to_somewhere.main.NotionClient")
-    @patch("src.feed_to_somewhere.main.FeedProcessor")
-    @patch("src.feed_to_somewhere.main.logger")
+    @patch("feed_to_somewhere.main.setup_logger")
+    @patch("feed_to_somewhere.main.NotionClient")
+    @patch("feed_to_somewhere.main.FeedProcessor")
+    @patch("feed_to_somewhere.main.logger")
     def test_main_exception(self, mock_logger, mock_processor_class, mock_notion_class, mock_setup_logger):
         """Test main function with an exception."""
         # Mock processor to raise an exception

@@ -4,6 +4,8 @@ import re
 from typing import List, Optional
 from datetime import datetime
 
+INVALID_TEXT_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\ud800-\udfff]")
+
 
 def clean_text(text: str) -> str:
     """
@@ -15,7 +17,7 @@ def clean_text(text: str) -> str:
     Returns:
         The cleaned text.
     """
-    return re.sub(r"[^\u0000-\uD7FF\uE000-\uFFFF]", "", text)
+    return INVALID_TEXT_RE.sub("", text)
 
 
 def format_date(date_struct: Optional[object], default_date: str) -> str:
