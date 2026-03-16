@@ -1,18 +1,19 @@
 """Configuration module for Feed to Somewhere."""
 
 import os
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
-# Try to load .env file if it exists
-try:
-    from dotenv import load_dotenv
-    # Look for .env file in the project root
-    env_path = Path(__file__).resolve().parents[2] / '.env'
+
+def _load_dotenv() -> None:
+    """Load a project-local ``.env`` file when python-dotenv is available."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+
+    env_path = Path(__file__).resolve().parents[2] / ".env"
     load_dotenv(dotenv_path=env_path)
-except ImportError:
-    # python-dotenv is not installed, continue without it
-    pass
 
 
 class Config:
@@ -20,30 +21,31 @@ class Config:
 
     def __init__(self):
         """Initialize configuration from environment variables."""
-        self.notion_token: str = self._get_required_env("NOTION_API_KEY")
-        self.database_id: str = self._get_required_env("NOTION_DATABASE_ID")
+        self.notion_token: Optional[str] = os.getenv("NOTION_API_KEY")
+        self.database_id: Optional[str] = os.getenv("NOTION_DATABASE_ID")
         self.feed_list_path: str = os.getenv("FEED_LIST_PATH", "feed_list.csv")
         self.chunk_size: int = int(os.getenv("CHUNK_SIZE", "2000"))
 
-    @staticmethod
-    def _get_required_env(name: str) -> str:
-        """
-        Get a required environment variable.
+_load_dotenv()
 
-        Args:
-            name: The name of the environment variable.
 
-        Returns:
-            The value of the environment variable.
+def require(value: Optional[str], name: str) -> str:
+    """
+    Validate that a required setting is present.
 
-        Raises:
-            ValueError: If the environment variable is not set.
-        """
-        value = os.getenv(name)
-        if value is None:
-            raise ValueError(f"Environment variable {name} is required")
+    Args:
+        value: The resolved setting value.
+        name: The environment variable name to mention in the error.
+
+    Returns:
+        The validated value.
+
+    Raises:
+        ValueError: If the value is missing.
+    """
+    if value:
         return value
+    raise ValueError(f"Environment variable {name} is required")
 
 
-# Create a singleton instance
 config = Config()

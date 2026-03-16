@@ -4,7 +4,7 @@ from typing import Dict, List, Any, Optional
 from notion_client import Client
 from notion_client.errors import APIResponseError
 
-from .config import config
+from .config import config, require
 from .logger import logger
 from .utils import chunk_text
 
@@ -20,8 +20,8 @@ class NotionClient:
             token: Notion API token. If None, uses the token from config.
             database_id: Notion database ID. If None, uses the database_id from config.
         """
-        self.token = token or config.notion_token
-        self.database_id = database_id or config.database_id
+        self.token = require(token or config.notion_token, "NOTION_API_KEY")
+        self.database_id = require(database_id or config.database_id, "NOTION_DATABASE_ID")
         self.client = Client(auth=self.token)
         self.chunk_size = config.chunk_size
 
