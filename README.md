@@ -16,15 +16,20 @@ A Python application that reads RSS feeds and saves them to a Notion database.
 The following environment variables can be set:
 
 - `NOTION_API_KEY`: Notion API authentication key (required)
-- `NOTION_DATABASE_ID`: ID of the Notion database to store data (required)
+- `NOTION_DATA_SOURCE_ID`: ID of the target Notion data source (preferred)
+- `NOTION_DATABASE_ID`: Legacy database ID used to resolve a child data source automatically
 - `FEED_LIST_PATH`: Path to the CSV file containing feed URLs (default: `feed_list.csv`)
 - `CHUNK_SIZE`: Maximum size of text chunks when adding to Notion (default: `2000`)
+
+## Requirements
+
+- Python `3.10` or later
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/feed-to-somewhere.git
+git clone <your-repo-url>
 cd feed-to-somewhere
 
 # Install the application
@@ -70,7 +75,7 @@ docker build -t feed-to-somewhere .
 # Run the container
 docker run --rm \
   -e NOTION_API_KEY=your_key \
-  -e NOTION_DATABASE_ID=your_db_id \
+  -e NOTION_DATA_SOURCE_ID=your_data_source_id \
   feed-to-somewhere
 ```
 
@@ -127,7 +132,7 @@ Tests do not require live Notion credentials. External API calls are mocked.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/feed-to-somewhere.git
+git clone <your-repo-url>
 cd feed-to-somewhere
 
 # Install in development mode
@@ -148,7 +153,7 @@ This will make the `feed-to-somewhere` command available in your environment.
 
 - beautifulsoup4 - HTML parsing
 - feedparser - RSS feed parsing
-- notion-client - Notion API integration
+- notion-client - Notion API integration with data source support
 - requests - HTTP requests
 - python-dotenv - Optional `.env` loading
 - pytest - Testing only, via `requirements-dev.txt`
