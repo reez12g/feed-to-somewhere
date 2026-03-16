@@ -24,6 +24,9 @@ class FeedProcessor:
             notion_client: The Notion client to use. If None, a new client is created.
             max_workers: Maximum number of worker threads to use.
         """
+        if max_workers <= 0:
+            raise ValueError("max_workers must be a positive integer")
+
         self.notion_client = notion_client or NotionClient()
         self.max_workers = max_workers
 
@@ -39,11 +42,23 @@ class FeedProcessor:
         """
         urls = []
         try:
-            with open(csv_file, "r") as f:
+            with open(csv_file, "r", encoding="utf-8", newline="") as f:
                 feed_list = csv.reader(f)
-                urls = [feed[0] for feed in feed_list]
+                for line_number, feed in enumerate(feed_list, start=1):
+                    if not feed or not any(cell.strip() for cell in feed):
+                        continue
+
+                    url = feed[0].strip()
+                    if not url:
+                        logger.warning(f"Skipping invalid feed URL on line {line_number} in {csv_file}")
+                        continue
+
+                    if url.startswith("#"):
+                        continue
+
+                    urls.append(url)
             logger.info(f"Read {len(urls)} feed URLs from {csv_file}")
-        except (IOError, IndexError) as e:
+        except IOError as e:
             logger.error(f"Failed to read feed URLs from {csv_file}: {e}")
 
         return urls
@@ -66,6 +81,49 @@ class FeedProcessor:
             logger.error(f"Failed to fetch feed from {url}: {e}")
             return []
 
+    @staticmethod
+    def html_to_text(html: str) -> str:
+        """
+        Convert HTML content into plain text.
+
+        Args:
+            html: HTML or text content.
+
+        Returns:
+            Extracted plain text.
+        """
+        if not html:
+            return ""
+
+        soup = BeautifulSoup(html, "html.parser")
+        paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+        if paragraphs:
+            return " ".join(paragraph for paragraph in paragraphs if paragraph)
+
+        return soup.get_text(" ", strip=True)
+
+    def extract_entry_content(self, entry: Dict[str, Any]) -> str:
+        """
+        Extract the most useful body content from the feed entry itself.
+
+        Args:
+            entry: The feed entry.
+
+        Returns:
+            Extracted body text if available.
+        """
+        for item in entry.get("content", []):
+            content = self.html_to_text(item.get("value", ""))
+            if content:
+                return content
+
+        for key in ("summary", "description"):
+            content = self.html_to_text(entry.get(key, ""))
+            if content:
+                return content
+
+        return ""
+
     def extract_content(self, url: str) -> str:
         """
         Extract text content from a URL.
@@ -81,8 +139,10 @@ class FeedProcessor:
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, "html.parser")
-            paragraphs = soup.find_all("p")
-            content = " ".join(p.text for p in paragraphs)
+            paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+            content = " ".join(paragraph for paragraph in paragraphs if paragraph)
+            if not content:
+                content = soup.get_text(" ", strip=True)
 
             logger.debug(f"Extracted {len(content)} characters from {url}")
             return content
@@ -112,7 +172,10 @@ class FeedProcessor:
                 logger.warning(f"Entry '{title}' has no link, skipping")
                 return False
 
-            body = self.extract_content(link)
+            body = self.extract_entry_content(entry)
+            if not body:
+                body = self.extract_content(link)
+
             if not body:
                 logger.warning(f"Failed to extract content for '{title}', using empty body")
                 body = "No content extracted"
@@ -144,8 +207,9 @@ class FeedProcessor:
 
         current_date = get_current_date_iso()
         success_count = 0
+        worker_count = min(self.max_workers, len(entries))
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = {executor.submit(self.process_entry, entry, current_date): entry for entry in entries}
 
             for future in concurrent.futures.as_completed(futures):
@@ -175,18 +239,13 @@ class FeedProcessor:
             return 0
 
         success_count = 0
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {executor.submit(self.process_feed, url): url for url in urls}
-
-            for future in concurrent.futures.as_completed(futures):
-                url = futures[future]
-                try:
-                    processed = future.result()
-                    if processed > 0:
-                        success_count += 1
-                except Exception as e:
-                    logger.error(f"Error processing feed {url}: {e}")
+        for url in urls:
+            try:
+                processed = self.process_feed(url)
+                if processed > 0:
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Error processing feed {url}: {e}")
 
         logger.info(f"Successfully processed {success_count}/{len(urls)} feeds")
         return success_count

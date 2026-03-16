@@ -35,6 +35,11 @@ class TestFeedProcessor(unittest.TestCase):
         self.assertEqual(self.feed_processor.notion_client, self.mock_notion_client)
         self.assertEqual(self.feed_processor.max_workers, 10)
 
+    def test_init_rejects_non_positive_max_workers(self):
+        """Test initialization rejects non-positive worker counts."""
+        with self.assertRaises(ValueError):
+            FeedProcessor(max_workers=0)
+
     def test_init_with_custom_values(self):
         """Test initialization with custom values."""
         custom_notion_client = MagicMock()
@@ -74,6 +79,16 @@ class TestFeedProcessor(unittest.TestCase):
             # Assert
             self.assertEqual(len(urls), 0)
             self.mock_logger.info.assert_called_once()
+
+    def test_read_feed_urls_skips_invalid_rows(self):
+        """Test read_feed_urls skips blank and malformed rows."""
+        csv_content = "\nhttp://example.com/feed1\n,ignored\n# comment\nhttp://example.com/feed2\n"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            urls = self.feed_processor.read_feed_urls("feed_list.csv")
+
+            self.assertEqual(urls, ["http://example.com/feed1", "http://example.com/feed2"])
+            self.mock_logger.warning.assert_called_once()
 
     def test_read_feed_urls_io_error(self):
         """Test read_feed_urls with an IO error."""
@@ -146,9 +161,9 @@ class TestFeedProcessor(unittest.TestCase):
 
         # Mock BeautifulSoup
         mock_p1 = MagicMock()
-        mock_p1.text = "Paragraph 1"
+        mock_p1.get_text.return_value = "Paragraph 1"
         mock_p2 = MagicMock()
-        mock_p2.text = "Paragraph 2"
+        mock_p2.get_text.return_value = "Paragraph 2"
         mock_soup = MagicMock()
         mock_soup.find_all.return_value = [mock_p1, mock_p2]
         mock_bs.return_value = mock_soup
@@ -197,6 +212,24 @@ class TestFeedProcessor(unittest.TestCase):
             # Assert
             self.assertTrue(result)
             self.feed_processor.extract_content.assert_called_once_with("http://example.com/article")
+            self.mock_notion_client.add_page.assert_called_once()
+
+    def test_process_entry_prefers_feed_content(self):
+        """Test process_entry uses feed-provided content before fetching the article."""
+        mock_entry = {
+            "title": "Test Title",
+            "link": "http://example.com/article",
+            "summary": "<p>Feed summary</p>",
+            "published_parsed": None
+        }
+
+        with patch.object(self.feed_processor, "extract_content") as mock_extract_content:
+            self.mock_notion_client.add_page.return_value = {"id": "page_id"}
+
+            result = self.feed_processor.process_entry(mock_entry, "2023-01-01")
+
+            self.assertTrue(result)
+            mock_extract_content.assert_not_called()
             self.mock_notion_client.add_page.assert_called_once()
 
     def test_process_entry_no_link(self):
@@ -305,36 +338,17 @@ class TestFeedProcessor(unittest.TestCase):
             self.assertEqual(result, 0)
             self.feed_processor.fetch_feed_entries.assert_called_once_with("http://example.com/feed")
 
-    @patch("src.feed_to_somewhere.feed_processor.concurrent.futures.ThreadPoolExecutor")
-    def test_process_feeds_success(self, mock_executor_class):
+    def test_process_feeds_success(self):
         """Test process_feeds with valid feeds."""
         # Mock read_feed_urls
         with patch.object(self.feed_processor, "read_feed_urls",
                          return_value=["http://example.com/feed1", "http://example.com/feed2"]):
-
-            # Mock ThreadPoolExecutor
-            mock_executor = MagicMock()
-            mock_executor_class.return_value.__enter__.return_value = mock_executor
-
-            # Mock submit and result
-            mock_future1 = MagicMock()
-            mock_future1.result.return_value = 2  # 2 entries processed
-            mock_future2 = MagicMock()
-            mock_future2.result.return_value = 0  # 0 entries processed
-
-            mock_executor.submit.side_effect = [mock_future1, mock_future2]
-
-            # Mock as_completed to return futures in order
-            with patch("src.feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
-                      return_value=[mock_future1, mock_future2]):
-
-                # Test
+            with patch.object(self.feed_processor, "process_feed", side_effect=[2, 0]) as mock_process_feed:
                 result = self.feed_processor.process_feeds("feed_list.csv")
 
-                # Assert
                 self.assertEqual(result, 1)  # One successful feed
                 self.feed_processor.read_feed_urls.assert_called_once_with("feed_list.csv")
-                self.assertEqual(mock_executor.submit.call_count, 2)
+                self.assertEqual(mock_process_feed.call_count, 2)
                 self.mock_logger.info.assert_called()
 
     def test_process_feeds_no_urls(self):
