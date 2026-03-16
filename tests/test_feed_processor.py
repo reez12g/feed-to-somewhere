@@ -33,11 +33,18 @@ class TestFeedProcessor(unittest.TestCase):
         """Test initialization with default values."""
         self.assertEqual(self.feed_processor.notion_client, self.mock_notion_client)
         self.assertEqual(self.feed_processor.max_workers, 10)
+        self.assertFalse(self.feed_processor.dry_run)
+        self.assertIsNone(self.feed_processor.max_entries_per_feed)
 
     def test_init_rejects_non_positive_max_workers(self):
         """Test initialization rejects non-positive worker counts."""
         with self.assertRaises(ValueError):
             FeedProcessor(max_workers=0)
+
+    def test_init_rejects_non_positive_max_entries_per_feed(self):
+        """Test initialization rejects non-positive per-feed limits."""
+        with self.assertRaises(ValueError):
+            FeedProcessor(max_entries_per_feed=0)
 
     def test_init_with_custom_values(self):
         """Test initialization with custom values."""
@@ -46,11 +53,21 @@ class TestFeedProcessor(unittest.TestCase):
 
         feed_processor = FeedProcessor(
             notion_client=custom_notion_client,
-            max_workers=custom_max_workers
+            max_workers=custom_max_workers,
+            dry_run=True,
+            max_entries_per_feed=3,
         )
 
         self.assertEqual(feed_processor.notion_client, custom_notion_client)
         self.assertEqual(feed_processor.max_workers, custom_max_workers)
+        self.assertTrue(feed_processor.dry_run)
+        self.assertEqual(feed_processor.max_entries_per_feed, 3)
+
+    def test_init_dry_run_does_not_create_notion_client(self):
+        """Test dry-run mode does not require a Notion client."""
+        feed_processor = FeedProcessor(dry_run=True)
+
+        self.assertIsNone(feed_processor.notion_client)
 
     def test_read_feed_urls_success(self):
         """Test read_feed_urls with a valid CSV file."""
@@ -299,6 +316,19 @@ class TestFeedProcessor(unittest.TestCase):
         self.mock_logger.warning.assert_called_once()
         self.mock_notion_client.add_page.assert_not_called()
 
+    def test_process_entry_dry_run(self):
+        """Test process_entry reports success without writing in dry-run mode."""
+        dry_run_processor = FeedProcessor(notion_client=None, dry_run=True)
+        entry = {
+            "title": "Test Title",
+            "link": "http://example.com/article",
+            "published_parsed": None,
+        }
+
+        result = dry_run_processor.process_entry(entry, "2023-01-01")
+
+        self.assertTrue(result)
+
     def test_process_entry_extraction_failure(self):
         """Test process_entry when content extraction fails."""
         # Mock entry
@@ -416,6 +446,32 @@ class TestFeedProcessor(unittest.TestCase):
             self.assertEqual(result, 0)
             self.feed_processor.fetch_feed_entries.assert_called_once_with("http://example.com/feed")
 
+    @patch("feed_to_somewhere.feed_processor.concurrent.futures.ThreadPoolExecutor")
+    def test_process_feed_respects_max_entries_limit(self, mock_executor_class):
+        """Test process_feed limits entries per feed when configured."""
+        limited_processor = FeedProcessor(
+            notion_client=self.mock_notion_client,
+            max_entries_per_feed=1,
+        )
+        mock_entry1 = {"title": "Entry 1", "link": "http://example.com/article1"}
+        mock_entry2 = {"title": "Entry 2", "link": "http://example.com/article2"}
+
+        with patch.object(limited_processor, "fetch_feed_entries", return_value=[mock_entry1, mock_entry2]):
+            mock_executor = MagicMock()
+            mock_executor_class.return_value.__enter__.return_value = mock_executor
+            mock_future = MagicMock()
+            mock_future.result.return_value = True
+            mock_executor.submit.return_value = mock_future
+
+            with patch(
+                "feed_to_somewhere.feed_processor.concurrent.futures.as_completed",
+                return_value=[mock_future],
+            ):
+                result = limited_processor.process_feed("http://example.com/feed")
+
+                self.assertEqual(result, 1)
+                mock_executor.submit.assert_called_once()
+
     def test_process_feeds_success(self):
         """Test process_feeds with valid feeds."""
         # Mock read_feed_urls
@@ -428,6 +484,17 @@ class TestFeedProcessor(unittest.TestCase):
                 self.feed_processor.read_feed_urls.assert_called_once_with("feed_list.csv")
                 self.assertEqual(mock_process_feed.call_count, 2)
                 self.mock_logger.info.assert_called()
+
+    def test_process_feed_urls_respects_max_feeds_limit(self):
+        """Test process_feed_urls limits the number of feed URLs processed."""
+        with patch.object(self.feed_processor, "process_feed", side_effect=[2, 1]) as mock_process_feed:
+            result = self.feed_processor.process_feed_urls(
+                ["http://example.com/feed1", "http://example.com/feed2", "http://example.com/feed3"],
+                max_feeds=2,
+            )
+
+            self.assertEqual(result, 2)
+            self.assertEqual(mock_process_feed.call_count, 2)
 
     def test_process_feeds_no_urls(self):
         """Test process_feeds with no feed URLs."""

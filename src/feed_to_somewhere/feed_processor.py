@@ -20,19 +20,35 @@ class FeedProcessor:
 
     ARTICLE_REQUEST_HEADERS = {"User-Agent": "feed-to-somewhere/0.1.0"}
 
-    def __init__(self, notion_client: Optional[NotionClient] = None, max_workers: int = 10):
+    def __init__(
+        self,
+        notion_client: Optional[NotionClient] = None,
+        max_workers: int = 10,
+        dry_run: bool = False,
+        max_entries_per_feed: Optional[int] = None,
+    ):
         """
         Initialize the feed processor.
 
         Args:
             notion_client: The Notion client to use. If None, a new client is created.
             max_workers: Maximum number of worker threads to use.
+            dry_run: Whether to log planned work without writing to Notion.
+            max_entries_per_feed: Optional per-feed entry limit.
         """
         if max_workers <= 0:
             raise ValueError("max_workers must be a positive integer")
 
-        self.notion_client = notion_client or NotionClient()
+        if max_entries_per_feed is not None and max_entries_per_feed <= 0:
+            raise ValueError("max_entries_per_feed must be a positive integer")
+
+        self.notion_client = notion_client
         self.max_workers = max_workers
+        self.dry_run = dry_run
+        self.max_entries_per_feed = max_entries_per_feed
+
+        if not self.dry_run and self.notion_client is None:
+            self.notion_client = NotionClient()
 
     @staticmethod
     def is_supported_url(url: str) -> bool:
@@ -203,6 +219,10 @@ class FeedProcessor:
                 logger.warning(f"Entry '{title}' has no link, skipping")
                 return False
 
+            if self.dry_run:
+                logger.info(f"[DRY RUN] Would process '{title}' ({link})")
+                return True
+
             body = self.extract_entry_content(entry)
             if not body:
                 body = self.extract_content(link)
@@ -214,6 +234,10 @@ class FeedProcessor:
             safe_body = clean_text(body)
             date_struct = entry.get("published_parsed")
             date_str = format_date(date_struct, current_date)
+
+            if self.notion_client is None:
+                logger.error("Notion client is not configured")
+                return False
 
             result = self.notion_client.add_page(title, link, safe_body, date_str)
             return result is not None
@@ -248,6 +272,10 @@ class FeedProcessor:
                 seen_links.add(link)
             deduplicated_entries.append(entry)
 
+        if self.max_entries_per_feed is not None and len(deduplicated_entries) > self.max_entries_per_feed:
+            logger.info(f"Limiting entries from {url} to first {self.max_entries_per_feed}")
+            deduplicated_entries = deduplicated_entries[:self.max_entries_per_feed]
+
         current_date = get_current_date_iso()
         success_count = 0
         worker_count = min(self.max_workers, len(deduplicated_entries))
@@ -269,12 +297,45 @@ class FeedProcessor:
         logger.info(f"Successfully processed {success_count}/{len(deduplicated_entries)} entries from {url}")
         return success_count
 
-    def process_feeds(self, csv_file: str) -> int:
+    def process_feed_urls(self, urls: List[str], max_feeds: Optional[int] = None) -> int:
+        """
+        Process a list of feed URLs.
+
+        Args:
+            urls: Feed URLs to process.
+            max_feeds: Optional limit on the number of feeds to process.
+
+        Returns:
+            The number of successfully processed feeds.
+        """
+        if not urls:
+            logger.warning("No feed URLs were provided")
+            return 0
+
+        selected_urls = urls
+        if max_feeds is not None and len(urls) > max_feeds:
+            logger.info(f"Limiting feeds to first {max_feeds} URLs")
+            selected_urls = urls[:max_feeds]
+
+        success_count = 0
+        for url in selected_urls:
+            try:
+                processed = self.process_feed(url)
+                if processed > 0:
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Error processing feed {url}: {e}")
+
+        logger.info(f"Successfully processed {success_count}/{len(selected_urls)} feeds")
+        return success_count
+
+    def process_feeds(self, csv_file: str, max_feeds: Optional[int] = None) -> int:
         """
         Process all feeds from a CSV file.
 
         Args:
             csv_file: Path to the CSV file containing feed URLs.
+            max_feeds: Optional limit on the number of feeds to process.
 
         Returns:
             The number of successfully processed feeds.
@@ -284,14 +345,4 @@ class FeedProcessor:
             logger.warning(f"No feed URLs found in {csv_file}")
             return 0
 
-        success_count = 0
-        for url in urls:
-            try:
-                processed = self.process_feed(url)
-                if processed > 0:
-                    success_count += 1
-            except Exception as e:
-                logger.error(f"Error processing feed {url}: {e}")
-
-        logger.info(f"Successfully processed {success_count}/{len(urls)} feeds")
-        return success_count
+        return self.process_feed_urls(urls, max_feeds=max_feeds)

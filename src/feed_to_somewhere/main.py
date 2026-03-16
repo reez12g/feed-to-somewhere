@@ -4,6 +4,7 @@ import sys
 import argparse
 from typing import List, Optional
 
+from . import __version__
 from .config import config
 from .logger import logger, setup_logger
 from .notion_client import NotionClient
@@ -31,6 +32,12 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Feed to Somewhere - Process RSS feeds and save to Notion")
 
     parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+
+    parser.add_argument(
         "--feed-file",
         type=str,
         default=config.feed_list_path,
@@ -38,10 +45,38 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--feed-url",
+        action="append",
+        dest="feed_urls",
+        default=[],
+        help="Process a single feed URL directly. Can be specified multiple times."
+    )
+
+    parser.add_argument(
         "--max-workers",
         type=positive_int,
         default=10,
         help="Maximum number of worker threads (default: 10)"
+    )
+
+    parser.add_argument(
+        "--max-feeds",
+        type=positive_int,
+        default=None,
+        help="Process at most this many feeds"
+    )
+
+    parser.add_argument(
+        "--max-entries",
+        type=positive_int,
+        default=None,
+        help="Process at most this many entries per feed"
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate feeds and log what would be processed without writing to Notion"
     )
 
     parser.add_argument(
@@ -71,17 +106,28 @@ def main(args: Optional[List[str]] = None) -> int:
     setup_logger(level=log_level)
 
     try:
-        # Initialize the Notion client
-        notion_client = NotionClient()
+        if parsed_args.feed_urls:
+            logger.info(f"Processing {len(parsed_args.feed_urls)} feed URLs provided on the command line")
+
+        if parsed_args.dry_run:
+            logger.info("Running in dry-run mode; Notion will not be modified")
+
+        # Initialize the Notion client only when writes are enabled.
+        notion_client = None if parsed_args.dry_run else NotionClient()
 
         # Initialize the feed processor
         processor = FeedProcessor(
             notion_client=notion_client,
-            max_workers=parsed_args.max_workers
+            max_workers=parsed_args.max_workers,
+            dry_run=parsed_args.dry_run,
+            max_entries_per_feed=parsed_args.max_entries,
         )
 
         # Process feeds
-        success_count = processor.process_feeds(parsed_args.feed_file)
+        if parsed_args.feed_urls:
+            success_count = processor.process_feed_urls(parsed_args.feed_urls, max_feeds=parsed_args.max_feeds)
+        else:
+            success_count = processor.process_feeds(parsed_args.feed_file, max_feeds=parsed_args.max_feeds)
 
         if success_count > 0:
             logger.info(f"Successfully processed {success_count} feeds")
