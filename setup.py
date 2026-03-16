@@ -25,7 +25,7 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     install_requires=read_requirements("requirements.txt"),
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     entry_points={
         "console_scripts": [
             "feed-to-somewhere=feed_to_somewhere.main:main",
@@ -35,10 +35,9 @@ setup(
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
 )
